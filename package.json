@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "list-models": "node scripts/list-models.js"
   },
   "keywords": [
     "node",
@@ -19,6 +20,7 @@
     "@fastify/cors": "^8.4.2",
     "@fastify/multipart": "^7.7.3",
     "@google/generative-ai": "^0.21.0",
+    "dotenv": "^16.6.1",
     "fastify": "^4.28.1",
     "mammoth": "^1.11.0",
     "pdf-parse": "^1.1.4"

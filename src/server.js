@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyMultipart from '@fastify/multipart';
@@ -27,7 +28,7 @@ fastify.get('/health', async () => {
 // Rotas de currículo
 await fastify.register(resumeRoutes);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 try {
   await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
