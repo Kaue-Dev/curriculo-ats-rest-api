@@ -14,6 +14,7 @@ model Session {
   analyses     Analysis[]
   creditGrants CreditGrant[]
   creditUsages CreditUsage[]
+  payments     Payment[]
 }
 
 model Analysis {
@@ -23,6 +24,8 @@ model Analysis {
 
   filename String?
   model    String?
+
+  resumeText String? @db.Text
 
   evaluation Json
 
@@ -58,3 +61,24 @@ model CreditUsage {
   @@index([sessionId, createdAt(sort: Desc)])
 }
 
+model Payment {
+  id        String   @id @default(uuid())
+  provider  String
+  createdAt DateTime @default(now())
+
+  sessionId String
+  amount    Decimal @db.Decimal(10, 2)
+  currency  String
+
+  preferenceId String?
+  paymentId    String? @unique
+  status       String
+  raw          Json?
+
+  processedAt DateTime?
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([provider, createdAt(sort: Desc)])
+  @@index([sessionId, createdAt(sort: Desc)])
+}

@@ -42,3 +42,18 @@ export async function consumeCredit(sessionId, analysisId, reason = 'analysis') 
   });
 }
 
+export async function resetCredits(sessionId, reason = 'admin_reset') {
+  const prisma = getPrisma();
+  const balance = await getCreditsBalance(sessionId);
+  if (balance <= 0) return { balance };
+
+  await prisma.creditUsage.create({
+    data: {
+      sessionId,
+      credits: balance,
+      reason,
+    },
+  });
+
+  return { balance: 0 };
+}
