@@ -2,7 +2,11 @@ import { extractTextFromFile, evaluateResume, evaluateResumeFree } from '../serv
 import { getOrCreateSessionId, isAdminRequest } from '../auth/session.js';
 import { consumeCredit, getCreditsBalance, grantCredits, resetCredits } from '../billing/credits.js';
 import { getPrisma } from '../db/prisma.js';
-import { createCheckoutPreference, fetchPayment } from '../payments/mercadopago.js';
+import {
+  createCheckoutPreference,
+  fetchPayment,
+  verifyMercadoPagoWebhookSignature,
+} from '../payments/mercadopago.js';
 
 export async function resumeRoutes(fastify) {
   const DATA_RETENTION_DAYS = Number(process.env.DATA_RETENTION_DAYS || 1);
@@ -387,6 +391,25 @@ export async function resumeRoutes(fastify) {
     }
 
     const paymentId = String(dataId);
+
+    const sigCheck = verifyMercadoPagoWebhookSignature({
+      signatureHeader: request.headers['x-signature'],
+      requestIdHeader: request.headers['x-request-id'],
+      dataId: paymentId,
+    });
+
+    if (!sigCheck.ok) {
+      request.log.warn(
+        {
+          reason: sigCheck.reason,
+          hasSignature: Boolean(request.headers['x-signature']),
+          hasRequestId: Boolean(request.headers['x-request-id']),
+          paymentId,
+        },
+        'Webhook Mercado Pago com assinatura inválida'
+      );
+      return reply.status(401).send({ ok: false });
+    }
 
     // Idempotency: if we already processed this payment as approved, ignore.
     const existing = await prisma.payment.findFirst({

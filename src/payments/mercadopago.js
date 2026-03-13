@@ -1,8 +1,10 @@
 import { getPrisma } from '../db/prisma.js';
+import crypto from 'node:crypto';
 
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const MP_WEBHOOK_URL = process.env.MP_WEBHOOK_URL || '';
+const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '';
 
 const PRICE_BRL = Number(process.env.PRICE_BRL || 7.9);
 const CREDITS_PER_PURCHASE = Number(process.env.CREDITS_PER_PURCHASE || 3);
@@ -29,6 +31,58 @@ function buildBackUrls() {
     pending: new URL('/?mp=pending', baseUrl.origin).toString(),
     failure: new URL('/?mp=failure', baseUrl.origin).toString(),
   };
+}
+
+function parseWebhookSignatureHeader(signatureHeader) {
+  const out = {};
+  for (const part of String(signatureHeader || '').split(',')) {
+    const [k, v] = part.split('=');
+    if (!k || !v) continue;
+    out[k.trim()] = v.trim();
+  }
+  return { ts: out.ts, v1: out.v1 };
+}
+
+export function verifyMercadoPagoWebhookSignature({ signatureHeader, requestIdHeader, dataId }) {
+  if (!MP_WEBHOOK_SECRET) return { ok: true, skipped: true };
+
+  const signature = String(signatureHeader || '').trim();
+  const requestId = String(requestIdHeader || '').trim();
+  const id = String(dataId || '').trim();
+
+  if (!signature || !requestId || !id) {
+    return { ok: false, reason: 'missing_signature_or_request_id_or_data_id' };
+  }
+
+  const { ts, v1 } = parseWebhookSignatureHeader(signature);
+  if (!ts || !v1) return { ok: false, reason: 'invalid_signature_header_format' };
+
+  let tsNum = Number(ts);
+  if (!Number.isFinite(tsNum)) return { ok: false, reason: 'invalid_ts' };
+  if (tsNum < 1e12) tsNum *= 1000; // seconds -> ms
+
+  const now = Date.now();
+  const skewMs = Math.abs(now - tsNum);
+  if (skewMs > 10 * 60 * 1000) {
+    return { ok: false, reason: 'ts_out_of_tolerance' };
+  }
+
+  // Docs mention: if the ID is strictly alphanumeric, convert to lowercase.
+  const idForManifest = /^[A-Z0-9]+$/.test(id) ? id.toLowerCase() : id;
+
+  const manifest = `id:${idForManifest};request-id:${requestId};ts:${ts};`;
+  const expectedHex = crypto.createHmac('sha256', MP_WEBHOOK_SECRET).update(manifest).digest('hex');
+
+  if (!/^[0-9a-fA-F]{64}$/.test(v1) || !/^[0-9a-f]{64}$/.test(expectedHex)) {
+    return { ok: false, reason: 'invalid_hex' };
+  }
+
+  const expected = Buffer.from(expectedHex, 'hex');
+  const received = Buffer.from(v1, 'hex');
+  if (expected.length !== received.length) return { ok: false, reason: 'length_mismatch' };
+
+  const ok = crypto.timingSafeEqual(expected, received);
+  return ok ? { ok: true } : { ok: false, reason: 'signature_mismatch' };
 }
 
 export async function createCheckoutPreference({ sessionId }) {
