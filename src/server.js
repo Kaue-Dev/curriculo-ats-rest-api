@@ -4,6 +4,18 @@ import fastifyCors from '@fastify/cors';
 import fastifyMultipart from '@fastify/multipart';
 import { resumeRoutes } from './routes/resumeRoutes.js';
 
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('[uncaughtException]', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('[unhandledRejection]', err);
+  process.exit(1);
+});
+
 const fastify = Fastify({
   logger: true
 });
@@ -32,7 +44,10 @@ const PORT = process.env.PORT || 3001;
 
 try {
   await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
-  fastify.log.info(`Servidor rodando em http://localhost:${PORT}`);
+  fastify.log.info(
+    { port: Number(PORT), nodeEnv: process.env.NODE_ENV || null },
+    'Servidor rodando'
+  );
 } catch (err) {
   fastify.log.error(err);
   process.exit(1);
