@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  analyses     Analysis[]
+  creditGrants CreditGrant[]
+  creditUsages CreditUsage[]
+}
+
+model Analysis {
+  id        String   @id @default(uuid())
+  sessionId String
+  createdAt DateTime @default(now())
+
+  filename String?
+  model    String?
+
+  evaluation Json
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt(sort: Desc)])
+}
+
+model CreditGrant {
+  id        String   @id @default(uuid())
+  sessionId String
+  createdAt DateTime @default(now())
+
+  credits Int
+  reason  String?
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt(sort: Desc)])
+}
+
+model CreditUsage {
+  id        String   @id @default(uuid())
+  sessionId String
+  analysisId String?
+  createdAt DateTime @default(now())
+
+  credits Int
+  reason  String?
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt(sort: Desc)])
+}
+

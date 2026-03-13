@@ -63,16 +63,30 @@ ${resumeText}
       }),
     ]);
     const response = await result.response;
-    return response.text();
+    const finishReason = response?.candidates?.[0]?.finishReason;
+    return { text: response.text(), finishReason };
   }
 
-  let text = await generateOnce(
+  let { text, finishReason } = await generateOnce(
     'IMPORTANTE: Retorne APENAS um JSON válido. Não inclua comentários, explicações, markdown ou texto extra.'
   );
 
   // O prompt já instrui a retornar apenas JSON; aqui garantimos isso no backend
+  if (finishReason === 'MAX_TOKENS') {
+    throw new Error(
+      'A resposta do Gemini foi truncada (MAX_TOKENS). Aumente GEMINI_MAX_OUTPUT_TOKENS ou reduza o tamanho da resposta.'
+    );
+  }
+
   const direct = tryParseJson(text);
   if (direct.ok) return direct.value;
+
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') && !trimmed.endsWith('}')) {
+    throw new Error(
+      'A resposta do Gemini parece truncada (JSON incompleto). Aumente GEMINI_MAX_OUTPUT_TOKENS ou reduza o tamanho da resposta.'
+    );
+  }
 
   const cleaned = stripCodeFences(text);
   const cleanedParsed = tryParseJson(cleaned);
@@ -85,9 +99,16 @@ ${resumeText}
   }
 
   if (GEMINI_JSON_RETRY) {
-    const retryText = await generateOnce(
+    const retryResult = await generateOnce(
       'Sua resposta anterior NÃO era um JSON válido. Refaça do zero e retorne APENAS um JSON válido (sem nenhum outro texto).'
     );
+    const retryText = retryResult.text;
+
+    if (retryResult.finishReason === 'MAX_TOKENS') {
+      throw new Error(
+        'A resposta do Gemini foi truncada (MAX_TOKENS). Aumente GEMINI_MAX_OUTPUT_TOKENS ou reduza o tamanho da resposta.'
+      );
+    }
 
     const retryDirect = tryParseJson(retryText);
     if (retryDirect.ok) return retryDirect.value;
@@ -109,6 +130,95 @@ ${resumeText}
     overallScore: 0,
     summary: 'Não foi possível interpretar a resposta do modelo como JSON.',
     sections: [],
+    raw: text,
+  };
+}
+
+export async function evaluateResumeFree(resumeText) {
+  const model = getGeminiModel();
+
+  const prompt = `
+${SYSTEM_PROMPT}
+
+IMPORTANTE: Você está gerando um preview gratuito.
+- Retorne APENAS um JSON válido, sem texto extra.
+- Retorne apenas 2 seções COMPLETAS (as 2 mais valiosas e impactantes para aumentar chances em ATS).
+- Para as demais seções, retorne apenas metadados (title, score e tipCount), SEM listar as dicas.
+
+A estrutura do JSON deve ser exatamente esta:
+{
+  "overallScore": <número de 0 a 100>,
+  "summary": "<resumo geral em 2-3 frases (máx. 400 caracteres)>",
+  "sections": [
+    {
+      "title": "<nome da seção>",
+      "score": <número de 0 a 100>,
+      "tips": [
+        "<dica 1 (máx. 200 caracteres). Quando aplicável inclua 'Exemplo: ...'>",
+        "<dica 2 (máx. 200 caracteres). Quando aplicável inclua 'Exemplo: ...'>",
+        "<dica 3 (máx. 200 caracteres)>"
+      ]
+    }
+  ],
+  "lockedSections": [
+    {
+      "title": "<nome da seção>",
+      "score": <número de 0 a 100>,
+      "tipCount": <número inteiro de 2 a 3>
+    }
+  ]
+}
+
+Currículo:
+---
+${resumeText}
+---`;
+
+  async function generateOnce() {
+    const result = await Promise.race([
+      model.generateContent(prompt),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Timeout do Gemini após ${GEMINI_TIMEOUT_MS}ms.`)), GEMINI_TIMEOUT_MS);
+      }),
+    ]);
+    const response = await result.response;
+    const finishReason = response?.candidates?.[0]?.finishReason;
+    return { text: response.text(), finishReason };
+  }
+
+  const { text, finishReason } = await generateOnce();
+
+  if (finishReason === 'MAX_TOKENS') {
+    throw new Error(
+      'A resposta do Gemini foi truncada (MAX_TOKENS). Aumente GEMINI_MAX_OUTPUT_TOKENS ou reduza o tamanho da resposta.'
+    );
+  }
+
+  const direct = tryParseJson(text);
+  if (direct.ok) return direct.value;
+
+  const cleaned = stripCodeFences(text);
+  const cleanedParsed = tryParseJson(cleaned);
+  if (cleanedParsed.ok) return cleanedParsed.value;
+
+  const extracted = extractJsonObject(cleaned);
+  if (extracted) {
+    const extractedParsed = tryParseJson(extracted);
+    if (extractedParsed.ok) return extractedParsed.value;
+  }
+
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') && !trimmed.endsWith('}')) {
+    throw new Error(
+      'A resposta do Gemini parece truncada (JSON incompleto). Aumente GEMINI_MAX_OUTPUT_TOKENS ou reduza o tamanho da resposta.'
+    );
+  }
+
+  return {
+    overallScore: 0,
+    summary: 'Não foi possível interpretar a resposta do modelo como JSON.',
+    sections: [],
+    lockedSections: [],
     raw: text,
   };
 }

@@ -4,7 +4,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_API_VERSION = process.env.GEMINI_API_VERSION || 'v1beta';
 const GEMINI_TEMPERATURE = Number(process.env.GEMINI_TEMPERATURE ?? 0.2);
-const GEMINI_MAX_OUTPUT_TOKENS = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS ?? 2048);
+const GEMINI_MAX_OUTPUT_TOKENS = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS ?? 4096);
 
 let geminiModel = null;
 
@@ -15,7 +15,7 @@ if (GEMINI_API_KEY) {
       model: GEMINI_MODEL,
       generationConfig: {
         temperature: Number.isFinite(GEMINI_TEMPERATURE) ? GEMINI_TEMPERATURE : 0.2,
-        maxOutputTokens: Number.isFinite(GEMINI_MAX_OUTPUT_TOKENS) ? GEMINI_MAX_OUTPUT_TOKENS : 2048,
+        maxOutputTokens: Number.isFinite(GEMINI_MAX_OUTPUT_TOKENS) ? GEMINI_MAX_OUTPUT_TOKENS : 4096,
         // Not in SDK typings, but accepted by the Gemini API; helps force JSON-only responses.
         responseMimeType: 'application/json',
       },
@@ -34,4 +34,3 @@ export function getGeminiModel() {
 
   return geminiModel;
 }
-
