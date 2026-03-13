@@ -8,6 +8,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "list-models": "node scripts/list-models.js",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
@@ -22,14 +23,11 @@
     "@fastify/cors": "^8.4.2",
     "@fastify/multipart": "^7.7.3",
     "@google/generative-ai": "^0.21.0",
+    "@prisma/client": "^6.19.2",
     "dotenv": "^16.6.1",
     "fastify": "^4.28.1",
     "mammoth": "^1.11.0",
-    "@prisma/client": "^6.16.0",
-    "pdf-parse": "^1.1.4"
-  }
-  ,
-  "devDependencies": {
-    "prisma": "^6.16.0"
+    "pdf-parse": "^1.1.4",
+    "prisma": "^6.19.2"
   }
 }
